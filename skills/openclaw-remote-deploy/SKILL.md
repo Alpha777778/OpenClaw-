@@ -1,11 +1,12 @@
 ---
 name: openclaw-remote-deploy
-description: 远程协助朋友在 Windows/Linux/Mac 安装并跑通 OpenClaw 的实战流程，包含常见报错与避坑清单。支持 Telegram / Discord / 飞书（Feishu）渠道全流程接入。
+description: 远程协助朋友在 Windows/Linux/Mac 安装并跑通 OpenClaw 的实战流程，包含各平台详细安装步骤、模型配置、Telegram/Discord/飞书渠道接入、常见报错排查清单。
 read_when:
   - 用户要你远程指导部署 OpenClaw
   - 用户要做新手保姆级安装支持
   - 用户遇到安装报错，需要快速排错
-  - 用户要接入飞书机器人渠道
+  - 用户要接入飞书/Telegram/Discord 机器人渠道
+  - 用户要配置 AI 模型（OpenAI/Gemini/DeepSeek/本地模型）
 allowed-tools: Bash, Browser
 ---
 
@@ -17,102 +18,329 @@ allowed-tools: Bash, Browser
 - 保证可复现：每一步都有检查点和回滚方式
 - 减少常见失败：网络、权限、账号登录、模型配置
 
-## 部署前预检（必须先做）
+---
+
+## 一、部署前预检（必须先做）
 
 ### 1) 环境矩阵
 
-- 操作系统：Windows 10/11、Ubuntu 22.04+、macOS
-- 网络：全程可访问 GitHub、npm、OpenClaw、模型服务
-- 账号：ClawHub 已注册并可登录
-- 聊天渠道：至少准备 1 个（Telegram/Discord/Feishu/WhatsApp）
-- 模型 API：至少 1 个可用 key（Gemini/OpenAI/Minimax 等）
+| 条件 | 要求 |
+|------|------|
+| 操作系统 | Windows 10/11、Ubuntu 22.04+、macOS 10.15+ |
+| Node.js | **v22 或更高**（v18/v20 均不支持，会启动失败） |
+| 网络 | 全程可访问 GitHub、npm、OpenClaw、模型服务 |
+| 账号 | ClawHub 已注册并可登录 |
+| 聊天渠道 | 至少准备 1 个（Telegram/Discord/Feishu/WhatsApp） |
+| 模型 API | 至少 1 个可用 key（Gemini/OpenAI/DeepSeek 等） |
 
 ### 2) 避坑原则
 
-- Linux 不要用 root 直接长期运行，创建普通用户部署
+- Linux **不要用 root** 直接长期运行，创建普通用户部署
 - 遇到报错先看日志，不要盲删配置
 - 任何"安装成功"都要过健康检查，不以命令返回码为准
-
-## 标准安装流程
-
-### 步骤 A：安装 OpenClaw
-
-```bash
-curl -fsSL openclaw.ai/install.sh | bash
-```
-
-检查点：
-
-- `openclaw --version` 有输出
-- `openclaw status` 能正常返回
-
-### 步骤 B：登录与基础配置
-
-```bash
-openclaw login
-openclaw status
-```
-
-检查点：
-
-- 显示已登录
-- 网关可启动，模型配置为空或待配置均可
-
-### 步骤 C：安装核心技能
-
-```bash
-clawhub login
-clawhub search telegram
-clawhub search discord
-clawhub search feishu
-```
-
-按需安装后检查：
-
-- 技能目录存在
-- `openclaw status` 不报技能加载错误
-
-### 步骤 D：配置模型
-
-最小可用策略：只接 1 个稳定模型，先跑通再扩展。
-
-检查点：
-
-- 使用一次简单问答测试（如"你好，回复 ok"）
-- 响应延迟和错误率在可接受范围
-
-### 步骤 E：打通一个聊天渠道
-
-优先 Telegram（新手最常见），或参考下方飞书专项接入指南。
-
-检查点：
-
-- 机器人能收消息
-- 在会话里能正常回复
-- 群聊中不会刷屏（只在需要时发言）
+- 新手只接 **1 个渠道 + 1 个模型**，先跑通再扩展
 
 ---
 
-## 飞书（Feishu）专项接入指南
+## 二、各平台安装步骤
+
+### macOS 安装
+
+```bash
+# 方法一：官方脚本（推荐）
+curl -fsSL https://openclaw.ai/install.sh | bash
+
+# 方法二：npm 全局安装
+npm install -g openclaw@latest
+
+# 安装后初始化
+openclaw onboard
+```
+
+> **Apple Silicon 用户注意**：如果报 `sharp` 编译失败，执行：
+> ```bash
+> export SHARP_IGNORE_GLOBAL_LIBVIPS=1
+> npm install -g openclaw@latest
+> ```
+
+检查点：
+- `openclaw --version` 有输出
+- `openclaw gateway status` 正常返回
+
+---
+
+### Linux 安装
+
+```bash
+# 第一步：确保 Node.js >= 22（推荐用 nvm）
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 22
+nvm use 22
+node -v   # 确认 v22.x.x
+
+# 第二步：安装 OpenClaw
+curl -fsSL https://openclaw.ai/install.sh | bash
+# 或
+npm install -g openclaw@latest
+
+# 第三步：初始化（--install-daemon 让网关开机自启）
+openclaw onboard --install-daemon
+```
+
+> **权限报错（EACCES）解决**：不要用 sudo，改 npm 全局目录：
+> ```bash
+> mkdir ~/.npm-global
+> npm config set prefix '~/.npm-global'
+> echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+> source ~/.bashrc
+> npm install -g openclaw@latest
+> ```
+
+检查点：
+- `openclaw status` 显示已登录
+- `systemctl status openclaw-gateway`（Linux systemd）运行中
+
+---
+
+### Windows 安装
+
+**方法一：PowerShell 一键安装（推荐）**
+
+```powershell
+iwr -useb https://openclaw.ai/install.ps1 | iex
+```
+
+**方法二：CMD 安装**
+
+```cmd
+curl -fsSL https://openclaw.ai/install.cmd -o install.cmd && install.cmd && del install.cmd
+```
+
+**方法三：WSL2 安装（更稳定，推荐有 Linux 基础的用户）**
+
+```powershell
+# 先安装 WSL2
+wsl --install
+# 进入 WSL 后按 Linux 步骤操作
+```
+
+> **Windows 注意事项**：
+> - `gateway install` 失败提示 schtasks 不可用时，改用 `openclaw gateway start`
+> - WSL2 中操作文件建议在 `~/projects` 等 Linux 原生目录，不要在 `/mnt/c/` 下
+> - 若 npm 报编译错误，需安装：Python 3、Git、Visual Studio Build Tools、CMake
+
+检查点：
+- `openclaw --version` 输出版本号
+- 浏览器访问 `http://127.0.0.1:18789/` 能打开控制台
+
+---
+
+## 三、登录与基础配置
+
+```bash
+openclaw login       # 登录 ClawHub 账号
+openclaw status      # 查看整体状态
+openclaw dashboard   # 打开网页控制台
+```
+
+检查点：
+- 显示已登录
+- 状态中无红色 ERROR
+
+---
+
+## 四、安装核心技能
+
+```bash
+clawhub login
+clawhub search feishu       # 搜索飞书技能
+clawhub search telegram
+clawhub search discord
+# 找到后安装
+clawhub install <技能名>
+```
+
+检查点：
+- 技能目录存在
+- `openclaw status` 不报技能加载错误
+
+---
+
+## 五、模型配置
+
+### 通用原则
+
+- 只配 1 个稳定模型先跑通，再扩展
+- 配置文件路径：
+  - macOS/Linux：`~/.openclaw/openclaw.json`
+  - Windows：`%USERPROFILE%\.openclaw\openclaw.json`
+
+### OpenAI / GPT
+
+```bash
+openclaw config set -- models.providers[0].provider "openai"
+openclaw config set -- models.providers[0].api_key "sk-xxx"
+openclaw config set -- models.providers[0].model.id "gpt-4o"
+```
+
+或直接编辑 `openclaw.json`：
+
+```json
+{
+  "models": {
+    "providers": [
+      {
+        "provider": "openai",
+        "api_key": "sk-xxx",
+        "model": { "id": "gpt-4o", "name": "GPT-4o" }
+      }
+    ]
+  }
+}
+```
+
+### Google Gemini
+
+```json
+{
+  "provider": "google",
+  "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+  "api": "openai-completions",
+  "api_key": "你的Gemini API Key",
+  "model": { "id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash" }
+}
+```
+
+### DeepSeek（硅基流动）
+
+```json
+{
+  "provider": "siliconflow",
+  "base_url": "https://api.siliconflow.cn/v1",
+  "api": "openai-completions",
+  "api_key": "你的SiliconFlow API Key",
+  "model": { "id": "deepseek-ai/DeepSeek-V3", "name": "DeepSeek-V3" }
+}
+```
+
+### MiniMax（Anthropic 协议）
+
+```json
+{
+  "provider": "minimax",
+  "base_url": "https://api.minimaxi.com/anthropic",
+  "api": "anthropic-messages",
+  "api_key": "你的MiniMax API Key",
+  "model": { "id": "MiniMax-M2.5", "name": "MiniMax M2.5" }
+}
+```
+
+### Ollama 本地模型（完全私有，无需 API Key）
+
+```bash
+# 先安装 Ollama 并拉取模型
+ollama pull llama3
+```
+
+```json
+{
+  "provider": "ollama",
+  "base_url": "http://127.0.0.1:11434",
+  "api": "openai-completions",
+  "model": { "id": "llama3", "name": "Llama3 Local" }
+}
+```
+
+检查点：
+
+- 发送测试消息"你好，回复 ok"，机器人有响应
+- 响应延迟在可接受范围（本地模型 5-30 秒正常）
+
+---
+
+## 六、渠道接入
+
+### Telegram 接入
+
+**第一步：创建 Bot**
+
+1. Telegram 搜索 `@BotFather`，发送 `/newbot`
+2. 按提示填写 Bot 名称和用户名
+3. 保存返回的 **Bot Token**（形如 `123456:ABCdef...`）
+
+**第二步：配置 OpenClaw**
+
+```bash
+openclaw config set channels.telegram.enabled true
+openclaw config set channels.telegram.botToken '你的BOT_TOKEN'
+openclaw config set channels.telegram.dmPolicy pairing
+```
+
+**第三步：配对用户**
+
+向 Bot 发任意消息，Bot 回复配对码后执行：
+
+```bash
+openclaw pairing approve telegram 配对码
+```
+
+**群组注意事项**：
+- Bot 默认开启隐私模式，只能看到 `/` 命令消息
+- 如需 Bot 看全部群消息，将 Bot 设为群管理员
+- 切换隐私模式后需将 Bot 移出再重新加入群组
+
+---
+
+### Discord 接入
+
+**第一步：创建 Discord Bot**
+
+1. 前往 [Discord 开发者门户](https://discord.com/developers)
+2. 创建新应用 → 添加 Bot 用户 → 复制 Bot Token
+3. 在 Privileged Gateway Intents 下启用：
+   - ✅ **Message Content Intent**（必须）
+   - ✅ Server Members Intent（推荐）
+
+**第二步：配置 OpenClaw**
+
+```bash
+openclaw config set channels.discord.enabled true
+openclaw config set channels.discord.botToken '你的BOT_TOKEN'
+openclaw config set channels.discord.dmPolicy pairing
+```
+
+**DM 策略说明**：
+
+| 策略 | 说明 |
+|------|------|
+| `pairing`（默认） | 未知用户收到配对码，批准后可聊天 |
+| `allowlist` | 只有白名单用户 ID 可发消息 |
+| `open` | 任何人都能收到回复（谨慎使用） |
+| `disabled` | 完全关闭私信 |
+
+---
+
+### 飞书（Feishu）专项接入指南
 
 > 飞书支持**长连接（WebSocket）模式**，不需要公网服务器/内网穿透，本地部署即可直接接入。
 
-### 第一步：创建飞书开放平台应用
+**第一步：创建飞书开放平台应用**
 
 1. 打开 [飞书开放平台](https://open.feishu.cn)，登录后点击「开发者后台」
 2. 点击「创建企业自建应用」，填写应用名称和描述
 3. 在左侧「应用能力」→「添加应用能力」，选择并添加**机器人**
 
-### 第二步：获取 App ID 和 App Secret
+**第二步：获取 App ID 和 App Secret**
 
 在应用管理页，左侧导航「凭证与基础信息」，复制保存：
 
 - **App ID**（形如 `cli_xxxxxxxxxx`）
 - **App Secret**（点击眼睛图标或复制按钮）
 
-### 第三步：开通必要权限
+**第三步：开通必要权限**
 
-在「权限管理」中搜索并开通以下权限（均选应用身份）：
+在「权限管理」中搜索并开通以下权限（应用身份）：
 
 | 权限名 | 权限标识 | 说明 |
 |--------|----------|------|
@@ -120,84 +348,67 @@ clawhub search feishu
 | 发送消息 | `im:message:send_as_bot` | 群聊发消息 |
 | 获取与更新群组信息 | `im:chat` | 群组管理 |
 
-> 权限开通后需创建新版本并发布才能在正式环境生效。
+**第四步：配置事件订阅（长连接模式）**
 
-### 第四步：配置事件订阅（长连接模式）
+1. 左侧「事件与回调」→「事件配置」
+2. 点击「订阅方式」编辑，选择**「使用长连接接收事件（WebSocket 模式）」**
+   - 不需要填写服务器 URL
+   - 若提示"未建立长连接"，先完成第五步再回来保存
+3. 点击「添加事件」，添加：
+   - `im.message.receive_v1`（接收消息，必须）
+   - `im.chat.member.bot.added_v1`（加入群聊，可选）
 
-1. 在左侧导航点击「事件与回调」→「事件配置」
-2. 点击「订阅方式」旁边的编辑按钮，选择**「使用长连接接收事件（WebSocket 模式）」**
-   - 此模式**不需要**填写服务器 URL，OpenClaw 主动连接飞书
-   - 若提示"未建立长连接"，说明 OpenClaw 侧还没配好，先完成第五步再回来保存
-3. 点击「添加事件」，搜索并添加以下事件：
-   - `im.message.receive_v1`（接收消息，机器人收到私聊/群聊消息时触发）
-   - `im.chat.member.bot.added_v1`（机器人加入群聊时触发，可选）
-
-### 第五步：在 OpenClaw 中配置飞书凭证
+**第五步：在 OpenClaw 中配置飞书凭证**
 
 ```bash
-# 交互式添加渠道（推荐新手）
+# 交互式添加渠道（推荐）
 openclaw channels add
 # 选择 Feishu，依次填入 App ID 和 App Secret
 
-# 或者直接命令行配置
+# 或命令行直接配置
 openclaw config set -- channels.feishu.appId "你的AppID"
 openclaw config set -- channels.feishu.appSecret "你的AppSecret"
-```
 
-配置完成后启动/重启网关：
-
-```bash
-openclaw gateway
-# 或重启
+# 重启网关
 openclaw gateway restart
-```
 
-查看日志确认飞书连接成功：
-
-```bash
+# 查看日志确认连接
 openclaw logs --follow
+# 看到 feishu ws connected 即成功
 ```
 
-看到 `feishu ws connected` 或 `feishu provider ready` 即为成功。
+**第六步：发布飞书应用版本（关键！不发布不生效）**
 
-### 第六步：发布飞书应用版本
+1. 飞书开放平台左侧「版本管理与发布」
+2. 点击「创建版本」→ 填写版本号 → 提交
+3. 企业自建应用通常自动审核通过
 
-> **此步骤非常关键，跳过会导致功能不生效**
+**飞书接入检查清单**：
 
-1. 在飞书开放平台左侧「版本管理与发布」
-2. 点击「创建版本」，填写版本号和说明
-3. 提交审核（企业自建应用通常自动审核通过）
-4. 发布成功后，飞书客户端会收到"应用已发布"通知
-
-检查点：
-
-- 应用状态显示「已启用」
-- 「当前修改均已发布」提示出现
-
-### 第七步：验证配对（群聊场景）
-
-将机器人添加到群聊：群设置 → 群机器人 → 添加机器人 → 搜索应用名。
-
-私聊机器人发送任意消息，若机器人回复了配对码，在 OpenClaw WebUI 执行：
-
-```bash
-openclaw pairing approve feishu <配对码>
-```
-
-### 飞书接入检查清单
-
-- [ ] 飞书开放平台应用已创建，机器人能力已添加
-- [ ] App ID 和 App Secret 已复制到 OpenClaw
+- [ ] 飞书应用已创建，机器人能力已添加
+- [ ] App ID 和 App Secret 已填入 OpenClaw（无多余空格）
 - [ ] `im:message` 等权限已开通
 - [ ] 事件订阅已切换为**长连接模式**
 - [ ] `im.message.receive_v1` 事件已添加
-- [ ] OpenClaw 日志中看到 `feishu ws connected`
+- [ ] OpenClaw 日志中出现 `feishu ws connected`
 - [ ] 飞书应用已发布最新版本
 - [ ] 私聊机器人能正常回复
 
 ---
 
-## 高价值经验（来自高互动中文教程共性）
+## 七、安全警告
+
+> 这是最容易被忽视、后果最严重的部分
+
+- OpenClaw 属于实验性软件，**不要安装在含有敏感数据的设备上**
+- **不要以 root 用户运行**
+- **不要将 Gateway 端口（默认 18789）直接暴露在公网**，已知超 1300+ 实例裸奔，攻击者可执行任意命令
+- 正确做法：`gateway.mode` 设为 `local`，只允许 `127.0.0.1`，公网访问用 Cloudflare Tunnel 或 Nginx 反向代理 + 严格认证
+- 安装社区技能前先用 Cisco Skill Scanner 扫描，部分技能含恶意代码
+
+---
+
+## 八、高价值经验
 
 - 教程要"截图+步骤+检查点"，纯命令列表新手会卡住
 - ClawHub 登录是关键，不登录会触发限速或安装失败
@@ -205,53 +416,122 @@ openclaw pairing approve feishu <配对码>
 - 权限要提前讲清：不给权限，很多自动化功能必然失败
 - 新手部署不要同时接多个渠道，先单通道稳定后再扩容
 - **飞书长连接模式无需公网 IP**，是最适合个人/内网部署的选项
+- 国内服务器连 Telegram/Discord 需要代理；飞书是国内服务无需代理
 
-## 常见故障与处理
+---
 
-### 1) 安装脚本超时/中断
+## 九、常见故障排查
 
-- 先确认网络和代理
-- 重试安装前，保留错误输出
-- 换一个更稳定节点再执行
+### 安装类
 
-### 2) 技能装不上或加载失败
+#### Node.js 版本不符（占安装失败约 60%）
 
-- 先确认 `clawhub login` 成功
-- 再看技能依赖是否满足
-- 单个技能逐个安装，避免一次装太多
+```bash
+node -v   # 必须 >= v22
+# 用 nvm 切换
+nvm install 22 && nvm use 22
+```
 
-### 3) Linux 权限问题
+#### npm 权限报错（EACCES）
 
-- 避免 root 下混用普通用户目录
-- 修正目录权限后重启 OpenClaw
+```bash
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+npm install -g openclaw@latest
+```
 
-### 4) 模型可用但无回复
+#### npm install failed / sharp 编译失败（Apple Silicon）
 
-- 检查模型 key 是否过期
-- 检查渠道回调是否配置完整
-- 用最小 prompt 做链路测试，先排除复杂逻辑
+```bash
+export SHARP_IGNORE_GLOBAL_LIBVIPS=1
+npm cache clean --force
+npm install -g openclaw@latest
+```
 
-### 5) 飞书机器人收不到消息
+#### 网络超时 / 镜像源问题（国内用户）
 
-- 检查事件订阅是否选择了**长连接模式**（不是 HTTP 回调模式）
-- 检查 `im.message.receive_v1` 事件是否已添加并保存
-- 检查 OpenClaw 网关是否在运行：`openclaw status`
-- 查看日志：`openclaw logs --follow`，确认有 `feishu ws connected`
-- 检查应用是否已在飞书平台**发布最新版本**
-- 检查 App ID 和 App Secret 是否正确（无多余空格）
+```bash
+npm config set registry https://registry.npmmirror.com
+npm install -g openclaw@latest
+```
 
-### 6) 飞书事件页面提示"长连接未建立"
+#### 通用清除重装流程
 
-- 正常现象：需要 OpenClaw 网关先跑起来并配好凭证，飞书才能检测到连接
-- 操作顺序：先在 OpenClaw 配好 App ID/Secret 并启动网关，再回飞书开放平台保存事件配置
+```bash
+npm cache clean --force
+npm uninstall -g openclaw
+npm install -g openclaw@latest
+openclaw doctor   # 自动诊断并修复
+```
 
-### 7) 飞书应用状态正常但机器人不响应
+#### Windows gateway install 失败
 
-- 确认应用「已启用」且当前为最新发布版本
-- 在「权限管理」确认 `im:message` 权限「已开通」（不是"待审核"）
-- 尝试将机器人从群里移除再重新添加
+```bash
+# 不用 install，直接 start
+openclaw gateway start
+```
 
-## 远程协助话术模板（可直接复制）
+---
+
+### 模型类
+
+#### 模型可用但无回复
+
+- 检查 API key 是否过期或额度耗尽
+- 用最小 prompt 测试：发"ping"，看能否收到任何回复
+- `openclaw logs --follow` 查看具体错误
+
+#### 模型切换后不生效
+
+- 重启网关：`openclaw gateway restart`
+- 确认 `openclaw.json` 语法正确（JSON 不允许注释和尾逗号）
+
+---
+
+### 渠道类
+
+#### Telegram Bot 收不到群消息
+
+- 检查 Bot 隐私模式（默认只收 `/` 命令）
+- 将 Bot 设为群管理员，或关闭隐私模式后移出再加入
+
+#### Discord Bot 无法读取消息
+
+- 确认在开发者门户开启了 **Message Content Intent**
+- 重新邀请 Bot 到服务器
+
+#### 飞书机器人收不到消息
+
+- 检查事件订阅是否选了**长连接模式**（不是 HTTP 回调）
+- 检查 `im.message.receive_v1` 是否已添加
+- `openclaw logs --follow` 确认有 `feishu ws connected`
+- 检查飞书应用是否已**发布最新版本**
+
+#### 飞书"长连接未建立"提示
+
+- 正常现象：OpenClaw 网关需先跑起来才能建立连接
+- 操作顺序：先在 OpenClaw 配好凭证并启动网关 → 再回飞书保存事件配置
+
+#### 飞书状态正常但不响应
+
+- 确认应用「已启用」且已发布
+- 「权限管理」确认 `im:message` 为「已开通」非「待审核」
+- 将机器人从群里移除再重新添加
+
+#### 国内服务器连 Telegram/Discord 超时
+
+```bash
+# 测试连通性
+curl -s --connect-timeout 3 https://api.telegram.org/bot<TOKEN>/getMe
+curl -s --connect-timeout 3 https://discord.com/api/v10/users/@me -H "Authorization: Bot <TOKEN>"
+# 超时则需配置代理
+```
+
+---
+
+## 十、远程协助话术模板
 
 ### 开场
 
@@ -265,17 +545,47 @@ openclaw pairing approve feishu <配对码>
 
 "现在你已经能稳定收发消息了。下一步再做双渠道、自动化任务、定时提醒，不要一口气全开。"
 
-## 验收标准（Done 定义）
+---
 
-- OpenClaw 已安装并可查询状态
-- ClawHub 已登录且至少 1 个技能可用
-- 至少 1 个模型可正常响应
-- 至少 1 个聊天渠道已收发成功（飞书 / Telegram / Discord 均可）
-- 用户知道常见报错如何自查
+## 十一、验收标准（Done 定义）
 
-## 进阶扩展
+- [ ] OpenClaw 已安装，`openclaw --version` 有输出
+- [ ] ClawHub 已登录，至少 1 个技能可用
+- [ ] 至少 1 个模型可正常响应（发消息有回复）
+- [ ] 至少 1 个聊天渠道已收发成功（飞书/Telegram/Discord 均可）
+- [ ] Gateway 已设为开机自启（daemon 模式）
+- [ ] 用户知道如何看日志和常见报错如何自查
+- [ ] 控制台 `http://127.0.0.1:18789/` 可以正常访问
 
-- 加一个"部署采集表"：记录 OS、网络、报错、修复动作
-- 给不同系统做 3 份 SOP：Windows/Linux/macOS
-- 沉淀 FAQ：把高频报错做成固定排障树
+---
+
+## 十二、常用命令速查
+
+```bash
+openclaw                    # 启动 OpenClaw
+openclaw onboard            # 初始化向导
+openclaw dashboard          # 打开网页控制台
+openclaw status             # 查看整体状态
+openclaw config             # 查看/修改配置
+openclaw logs --follow      # 实时日志
+openclaw gateway start      # 启动后台网关
+openclaw gateway stop       # 停止网关
+openclaw gateway restart    # 重启网关
+openclaw gateway status     # 查看网关状态
+openclaw skills             # 管理技能
+openclaw channels add       # 添加渠道
+openclaw update             # 检查并更新
+openclaw doctor             # 自动诊断并修复
+openclaw pairing approve <platform> <code>  # 批准用户配对
+```
+
+---
+
+## 十三、进阶扩展
+
+- 多模型任务分配：Claude 处理复杂推理，Gemini Flash 处理快速查询，Gateway 自动路由
 - 飞书进阶：配置多租户、企业审批流、飞书卡片消息格式
+- 安全加固：Cloudflare Tunnel + 反向代理，隐藏 Gateway 端口
+- 自动化：定时任务、跨渠道消息转发、Webhook 触发
+- 给不同系统做 SOP：Windows/Linux/macOS 各一份
+- 沉淀高频报错固定排障树
